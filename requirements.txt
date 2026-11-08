@@ -4,3 +4,6 @@ crewai-tools
 duckduckgo-search
 holehe
 langchain-community
+google-genai
+google-generativeai
+Pillow
