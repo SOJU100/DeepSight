@@ -87,7 +87,10 @@ def render_case_dossier(case: dict, key_prefix: str):
     st.download_button("📥 Download Full Dossier (.md)", data=str(case.get("report", "")), file_name=f"deepsight_{case['target']}.md", mime="text/markdown", key=key_prefix)
 
 with st.sidebar:
-    st.image("logo.png", use_container_width=True) if os.path.exists("logo.png") else st.markdown(f"### 🛡️ {APP_NAME}")
+    if os.path.exists("logo.png"):
+    st.image("logo.png", use_container_width=True)
+else:
+    st.markdown(f"### 🛡️ {APP_NAME}")
     st.caption("INTELLIGENCE PLATFORM")
     st.divider()
     nav = st.radio("NAVIGATION", ["📊 Dashboard", "🔍 Investigations", "🔑 API & Settings"], label_visibility="collapsed")
