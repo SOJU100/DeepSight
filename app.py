@@ -15,32 +15,22 @@ st.markdown("""
 <style>
     .stApp { background-color: #0b0f19; color: #e2e8f0; }
     [data-testid="stSidebar"] { background-color: #0f1523; border-right: 1px solid #1e293b; }
-    
-    /* Blue + NEW INVESTIGATION Popover Button */
     [data-testid="stPopover"] > button {
         background-color: #3b82f6 !important;
         color: #ffffff !important;
         border: none !important;
         border-radius: 6px !important;
         font-weight: 700 !important;
-        letter-spacing: 0.5px !important;
         padding: 10px 18px !important;
         width: 100%;
     }
-    [data-testid="stPopover"] > button:hover {
-        background-color: #2563eb !important;
-    }
-
-    /* Dark Dropdown Container */
     [data-testid="stPopoverBody"] {
         background-color: #0f1523 !important;
         border: 1px solid #1e293b !important;
         border-radius: 10px !important;
         padding: 16px !important;
-        min-width: 340px !important;
+        min-width: 320px !important;
     }
-
-    /* KPI Metric Cards */
     .kpi-card { background-color: #111827; border: 1px solid #1e293b; border-radius: 8px; padding: 18px 20px; margin-bottom: 10px; }
     .kpi-label { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #94a3b8; text-transform: uppercase; margin-bottom: 6px; }
     .kpi-value-blue { font-size: 28px; font-weight: 800; color: #3b82f6; }
@@ -48,31 +38,20 @@ st.markdown("""
     .kpi-value-green { font-size: 28px; font-weight: 800; color: #10b981; }
     .kpi-value-white { font-size: 28px; font-weight: 800; color: #f8fafc; }
     .kpi-sub { font-size: 12px; color: #64748b; margin-top: 2px; }
-
-    /* Mode Action Cards */
     .mode-card { background-color: #111827; border: 1px solid #1e293b; border-radius: 8px; padding: 16px; height: 130px; margin-bottom: 8px; }
     .mode-title { font-size: 13px; font-weight: 700; letter-spacing: 0.5px; color: #f8fafc; margin-bottom: 6px; }
     .mode-desc { font-size: 12px; color: #94a3b8; line-height: 1.4; }
     .section-header { font-size: 12px; font-weight: 700; letter-spacing: 1.2px; color: #64748b; text-transform: uppercase; margin-top: 20px; margin-bottom: 10px; }
-    
-    /* Dropdown Menu Item Styling */
-    .menu-item-box {
-        background-color: #131b2e;
-        border: 1px solid #1e293b;
-        border-radius: 8px;
-        padding: 12px;
-        margin-bottom: 6px;
-    }
+    .menu-item-box { background-color: #131b2e; border: 1px solid #1e293b; border-radius: 8px; padding: 12px; margin-bottom: 6px; }
     .menu-title { font-size: 13px; font-weight: 800; color: #f8fafc; }
     .menu-sub { font-size: 11px; color: #94a3b8; margin-top: 3px; line-height: 1.3; }
-    .menu-badge { font-size: 10px; font-weight: 700; color: #10b981; margin-top: 5px; letter-spacing: 0.5px; }
+    .menu-badge { font-size: 10px; font-weight: 700; color: #10b981; margin-top: 5px; }
 </style>
 """, unsafe_allow_html=True)
 
 if "investigations" not in st.session_state:
     st.session_state.investigations = []
 
-# --- SIDEBAR ---
 with st.sidebar:
     st.markdown(f"### 🛡️ {APP_NAME}")
     st.caption("INTELLIGENCE PLATFORM")
@@ -91,7 +70,6 @@ with st.sidebar:
         else:
             st.warning("● API INACTIVE — Add key in Secrets")
 
-# --- OSINT TOOLS ---
 @tool("Email Footprint Scanner")
 def scan_email(email: str) -> str:
     """Checks where an email address is registered across 100+ websites using Holehe."""
@@ -107,7 +85,6 @@ def web_search(query: str) -> str:
     search = DuckDuckGoSearchRun()
     return search.run(query)
 
-# --- INVESTIGATION ENGINES ---
 def run_text_investigation(target: str, mode: str, gemini_key: str) -> str:
     gemini_llm = LLM(model="gemini/gemini-2.5-flash", api_key=gemini_key)
 
@@ -170,7 +147,6 @@ def run_photo_investigation(uploaded_image, context_notes: str, gemini_key: str)
     response = model.generate_content([prompt, img])
     return response.text
 
-# --- POPUP INVESTIGATION MODAL ---
 @st.dialog("🚀 Launch Investigation", width="large")
 def open_investigation_modal(selected_mode="Full Investigation"):
     st.caption(f"// ACTIVE OPERATION TYPE: {selected_mode.upper()}")
@@ -210,3 +186,11 @@ def open_investigation_modal(selected_mode="Full Investigation"):
                 os.environ["GEMINI_API_KEY"] = api_key
                 with st.status(f"Deploying {selected_mode} Agents...", expanded=True) as status:
                     st.write("🔍 **Footprint Scanner:** Checking platform registrations...")
+                    st.write("🌐 **Web Researcher:** Querying open web & public records...")
+                    st.write("🧠 **Lead Analyst:** Compiling final intelligence dossier...")
+                    try:
+                        report = run_text_investigation(target_input, selected_mode, api_key)
+                        st.session_state.investigations.append({
+                            "time": datetime.now().strftime("%H:%M"),
+                            "mode": selected_mode,
+                            "target": target_input,
