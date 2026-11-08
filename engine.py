@@ -1,6 +1,6 @@
 import base64, io, re, subprocess
 from concurrent.futures import ThreadPoolExecutor
-import dns.resolver, phonenumbers
+import dns.resolver, phonenumbers, imagehash
 from phonenumbers import geocoder, carrier, timezone
 from geopy.geocoders import Nominatim
 from PIL import Image, ExifTags
@@ -79,7 +79,10 @@ def agent_breach_dns(target: str, handle: str) -> str:
 def run_text_investigation(target: str, mode: str, api_key: str) -> dict:
     client = Groq(api_key=api_key.strip())
     target = target.strip()
-    handle = target.split("@", 1)[0] if "@" in target else target.lstrip("@")
+    if "@" in target:
+        handle, _ = target.split("@", 1)
+    else:
+        handle = target.lstrip("@")
     with ThreadPoolExecutor(max_workers=5) as ex:
         f1 = ex.submit(agent_email, target)
         f2 = ex.submit(agent_socials, handle, target)
@@ -117,8 +120,19 @@ def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) ->
     raw_img = Image.open(uploaded_image)
     w, h = raw_img.size
     fmt = raw_img.format or "Unknown"
+    phash = str(imagehash.phash(raw_img))
 
-    exif_lines = [f"- **Dimensions & Format:** {w}x{h} px ({fmt})"]
+    # Detect Facebook / Instagram CDN filename patterns
+    fname = uploaded_image.name
+    platform_hint = "Standard Camera/Web File"
+    if re.search(r"^\d+_\d+_\d+_n\.(jpg|png)", fname.lower()):
+        platform_hint = "Meta CDN Pattern Detected (Downloaded directly from Facebook or Instagram)"
+
+    exif_lines = [
+        f"- **Dimensions & Format:** {w}x{h} px ({fmt})",
+        f"- **Perceptual Visual Fingerprint (pHash):** `{phash}`",
+        f"- **Origin Signature:** {platform_hint}"
+    ]
     try:
         ex = raw_img._getexif()
         if ex:
@@ -132,6 +146,7 @@ def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) ->
         pass
     exif_str = "\n".join(exif_lines)
 
+    # Check if Groq account has an active vision model
     vision_model = None
     try:
         for m in client.models.list().data:
@@ -141,7 +156,7 @@ def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) ->
     except Exception:
         pass
 
-    v_rep = ""
+    visual_clues = ""
     if vision_model:
         try:
             img = raw_img.convert("RGB")
@@ -149,40 +164,45 @@ def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) ->
             buf = io.BytesIO()
             img.save(buf, format="JPEG", quality=75)
             b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
-            prompt = f"Senior OSINT Visual Analyst. First line ONLY: LOCATION: <City, Country or NONE>\nEXIF:\n{exif_str}\nContext: {context_notes}\nSections: ### 1. EXIF & Digital Forensics ### 2. Visual & Geolocation Clues ### 3. Actionable Search Dorks"
-            c = client.chat.completions.create(model=vision_model, messages=[{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}]}])
-            v_rep = next(iter(c.choices)).message.content
+            v_prompt = "Describe the subject (age, gender, ethnicity, hair, distinctive facial features, clothing, accessories), background text/logos, and suspected city/country in 120 words."
+            vc = client.chat.completions.create(model=vision_model, messages=[{"role": "user", "content": [{"type": "text", "text": v_prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}]}])
+            visual_clues = next(iter(vc.choices)).message.content
         except Exception:
-            v_rep = ""
+            visual_clues = ""
 
-    if not v_rep:
-        fallback_prompt = f"""
-        You are a Senior OSINT Digital Forensics & Geolocation Analyst.
-        First line ONLY: LOCATION: <City, Country from context/metadata or NONE>
-        An image file named '{uploaded_image.name}' was submitted for intelligence analysis.
-        FILE & EXIF FORENSICS:
-        {exif_str}
-        INVESTIGATOR CONTEXT:
-        {context_notes if context_notes else 'None provided'}
+    # Run parallel social media & look-alike dork agents across Facebook, Instagram, TikTok, X & LinkedIn
+    search_seed = context_notes.strip() if context_notes else fname.rsplit(".", 1)
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        fb_fut = ex.submit(web_search, f'"{search_seed}" site:facebook.com')
+        ig_tt_fut = ex.submit(web_search, f'"{search_seed}" site:instagram.com OR site:tiktok.com OR site:threads.net')
+        other_soc_fut = ex.submit(web_search, f'"{search_seed}" site:x.com OR site:linkedin.com OR site:youtube.com OR site:reddit.com')
+        fb_hits, ig_tt_hits, other_hits = fb_fut.result(), ig_tt_fut.result(), other_soc_fut.result()
 
-        Generate a structured Markdown report with:
-        ### 1. File & EXIF Metadata Forensics
-        ### 2. Geolocation & Context Assessment
-        ### 3. Targeted OSINT Search Queries & Next Steps
-        """
-        c = client.chat.completions.create(model="openai/gpt-oss-120b", messages=[{"role": "user", "content": fallback_prompt}])
-        v_rep = next(iter(c.choices)).message.content
+    synth_prompt = f"""
+    You are DeepSight's Social Media & Facial OSINT Lead Analyst.
+    First line ONLY: LOCATION: <City, Country from clues/context or NONE>
 
-    detected_loc, clean_lines = None, []
-    for line in v_rep.splitlines():
-        if line.strip().startswith("LOCATION:"):
-            _, loc_part = line.split("LOCATION:", 1)
-            detected_loc = geocode_location(loc_part.strip())
-        else:
-            clean_lines.append(line)
+    FILE & FORENSIC SIGNATURE:
+    {exif_str}
 
-    if not detected_loc and context_notes:
-        detected_loc = geocode_location(context_notes)
+    VISUAL SUBJECT & SCENE CLUES:
+    {visual_clues if visual_clues else 'Vision quota busy — rely on filename origin signature, context notes, and social web hits below.'}
 
-    links = "\n---\n### 🔗 One-Click Reverse Image Search Engines\n* **[Google Lens](https://google.com)** — Match objects, clothing, backgrounds, and reposts.\n* **[Yandex Images](https://yandex.com)** — Strongest engine for facial similarity and social profiles.\n* **[TinEye](https://tineye.com)** — Locate the oldest original upload date of an image."
-    return {"report": "\n".join(clean_lines).strip() + links, "map_data": detected_loc}
+    INVESTIGATOR CONTEXT / NAME CLUES:
+    {context_notes if context_notes else 'None provided'}
+
+    FACEBOOK SEARCH SWEEP:
+    {fb_hits[:1400]}
+
+    INSTAGRAM & TIKTOK SWEEP:
+    {ig_tt_hits[:1400]}
+
+    X, LINKEDIN & OTHER SOCIALS:
+    {other_hits[:1200]}
+
+    Write a detailed Markdown report with these exact sections:
+    ### 1. Image Origin, EXIF & Perceptual Fingerprint
+    ### 2. Subject Profile & Look-Alike Facial Matching Strategy
+    ### 3. Facebook & All Social Media Account Matches
+    ### 4. Geolocation Assessment & Targeted Social Dorks
+    """
