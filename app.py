@@ -36,7 +36,10 @@ if "investigations" not in st.session_state:
 with st.sidebar:
     st.markdown(f"### 🛡️ {APP_NAME}")
     st.caption("INTELLIGENCE PLATFORM")
-    st.divider()
+    if api_key:
+    st.success("● API ACTIVE (Encrypted Vault)")
+else:
+    st.warning("● API INACTIVE")
     nav = st.radio("NAVIGATION", ["📊 Dashboard", "🔍 Investigations", "🔑 API & Settings"], label_visibility="collapsed")
     st.divider()
     api_key = st.secrets["GEMINI_API_KEY"] if "GEMINI_API_KEY" in st.secrets else st.text_input("Gemini API Key", type="password")
