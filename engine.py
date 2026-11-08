@@ -139,7 +139,7 @@ def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) ->
     detected_loc, clean_lines = None, []
     for line in v_rep.splitlines():
         if line.strip().startswith("LOCATION:"):
-            detected_loc = geocode_location(line.split("LOCATION:", 1).strip())
+            detected_loc = geocode_location(line.split("LOCATION:", 1)[1].strip())
         else:
             clean_lines.append(line)
     links = "\n---\n### 🔗 One-Click Reverse Image Search\n* **[Google Lens](https://google.com)** | **[Yandex Images](https://yandex.com)** | **[TinEye](https://tineye.com)**"
