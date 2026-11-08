@@ -92,7 +92,10 @@ def parse_json_profile(raw_text: str, fallback_name: str) -> dict:
 def run_text_investigation(target: str, mode: str, api_key: str) -> dict:
     client = Groq(api_key=api_key.strip())
     target = target.strip()
-    handle = target.split("@", 1) if "@" in target else target.lstrip("@")
+    if "@" in target:
+    handle, _ = target.split("@", 1)
+else:
+    handle = target.lstrip("@")
     with ThreadPoolExecutor(max_workers=3) as ex:
         f1 = ex.submit(agent_email, target)
         f2 = ex.submit(agent_socials, handle, target)
