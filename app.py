@@ -163,12 +163,7 @@ def open_investigation_modal(selected_mode="Full Investigation"):
                 with st.status("Analyzing image clues...", expanded=True) as status:
                     try:
                         report = run_photo_investigation(uploaded_file, photo_context, api_key)
-                        st.session_state.investigations.append({
-                            "time": datetime.now().strftime("%H:%M"),
-                            "mode": "Photo Intel",
-                            "target": uploaded_file.name,
-                            "report": report
-                        })
+                        st.session_state.investigations.append({"time": datetime.now().strftime("%H:%M"), "mode": "Photo Intel", "target": uploaded_file.name, "report": report})
                         status.update(label="✅ Complete!", state="complete")
                         st.rerun()
                     except Exception as e:
@@ -190,7 +185,7 @@ def open_investigation_modal(selected_mode="Full Investigation"):
                     st.write("🧠 **Lead Analyst:** Compiling final intelligence dossier...")
                     try:
                         report = run_text_investigation(target_input, selected_mode, api_key)
-                        st.session_state.investigations.append({
-                            "time": datetime.now().strftime("%H:%M"),
-                            "mode": selected_mode,
-                            "target": target_input,
+                        st.session_state.investigations.append({"time": datetime.now().strftime("%H:%M"), "mode": selected_mode, "target": target_input, "report": report})
+                        status.update(label="✅ Investigation Complete!", state="complete")
+                        st.rerun()
+                    except Exception as e:
