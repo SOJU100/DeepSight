@@ -12,7 +12,7 @@ st.markdown("""
 <style>
     .stApp { background-color: #0b0f19; color: #e2e8f0; }
     [data-testid="stSidebar"] { background-color: #0f1523; border-right: 1px solid #1e293b; }
-    [data-testid="stPopover"] > button { background-color: #3b82f6 !important; color: #fff !important; border: none !important; border-radius: 6px !important; font-weight: 700 !important; padding: 10px 18px !important; width: 100%; }
+    [data-testid="stPopover"] > button { background-color: #3b82f6 !important; color: #fff !important; border: none !important; border-radius: 6px !important; font-weight: 800 !important; padding: 10px 18px !important; width: 100%; }
     [data-testid="stPopoverBody"] { background-color: #0f1523 !important; border: 1px solid #1e293b !important; border-radius: 10px !important; padding: 16px !important; min-width: 320px !important; }
     .kpi-card { background-color: #111827; border: 1px solid #1e293b; border-radius: 8px; padding: 18px 20px; margin-bottom: 10px; }
     .kpi-label { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #94a3b8; text-transform: uppercase; margin-bottom: 6px; }
