@@ -113,34 +113,76 @@ def run_text_investigation(target: str, mode: str, api_key: str) -> dict:
 def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) -> dict:
     client = Groq(api_key=api_key.strip())
     raw_img = Image.open(uploaded_image)
-    exif_str = "No EXIF metadata."
+    w, h = raw_img.size
+    fmt = raw_img.format or "Unknown"
+
+    exif_lines = [f"- **Dimensions & Format:** {w}x{h} px ({fmt})"]
+    gps_coords = None
     try:
         ex = raw_img._getexif()
         if ex:
-            tags = [f"- **{ExifTags.TAGS.get(k, k)}:** {v}" for k, v in ex.items() if ExifTags.TAGS.get(k, k) in ["Make", "Model", "DateTimeOriginal", "Software", "GPSInfo"]]
-            if tags:
-                exif_str = "\n".join(tags)
+            for k, v in ex.items():
+                tag = ExifTags.TAGS.get(k, k)
+                if tag in ["Make", "Model", "DateTime", "DateTimeOriginal", "Software", "Artist"]:
+                    exif_lines.append(f"- **{tag}:** {v}")
+                elif tag == "GPSInfo" and isinstance(v, dict):
+                    exif_lines.append(f"- **Raw GPS Tag Detected:** {v}")
     except Exception:
         pass
-    img = raw_img.convert("RGB")
-    img.thumbnail((512, 512))
-    buf = io.BytesIO()
-    img.save(buf, format="JPEG", quality=75)
-    b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
-    prompt = f"Senior OSINT Visual Analyst. First line ONLY: LOCATION: <City, Country or NONE>\nEXIF:\n{exif_str}\nContext: {context_notes}\nSections: ### 1. EXIF & Assessment ### 2. Visual Forensics ### 3. Geolocation Clues ### 4. Reverse-Search Dorks"
+    exif_str = "\n".join(exif_lines)
+
+    # Check if your Groq account currently has any vision model enabled
+    vision_model = None
+    try:
+        for m in client.models.list().data:
+            if any(v in m.id.lower() for v in ["vl", "vision", "qwen3.8"]):
+                vision_model = m.id
+                break
+    except Exception:
+        pass
+
     v_rep = ""
-    for m in ["qwen/qwen3.8-27b", "meta-llama/llama-4-maverick-17b-128e-instruct"]:
+    if vision_model:
         try:
-            c = client.chat.completions.create(model=m, messages=[{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}]}])
+            img = raw_img.convert("RGB")
+            img.thumbnail((512, 512))
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=75)
+            b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+            prompt = f"Senior OSINT Visual Analyst. First line ONLY: LOCATION: <City, Country or NONE>\nEXIF:\n{exif_str}\nContext: {context_notes}\nSections: ### 1. EXIF & Digital Forensics ### 2. Visual & Geolocation Clues ### 3. Actionable Search Dorks"
+            c = client.chat.completions.create(model=vision_model, messages=[{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}]}])
             v_rep = c.choices.message.content
-            break
-        except Exception as e:
-            v_rep = f"LOCATION: NONE\n⚠️ Vision note: {str(e)}"
+        except Exception:
+            v_rep = ""
+
+    # Fallback to text-based forensic & context intelligence if vision quota is unavailable
+    if not v_rep:
+        fallback_prompt = f"""
+        You are a Senior OSINT Digital Forensics & Geolocation Analyst.
+        First line ONLY: LOCATION: <City, Country from context/metadata or NONE>
+        An image file named '{uploaded_image.name}' was submitted for intelligence analysis.
+        FILE & EXIF FORENSICS:
+        {exif_str}
+        INVESTIGATOR CONTEXT:
+        {context_notes if context_notes else 'None provided'}
+
+        Generate a structured Markdown report with:
+        ### 1. File & EXIF Metadata Forensics
+        ### 2. Geolocation & Context Assessment
+        ### 3. Targeted OSINT Search Queries & Next Steps
+        """
+        c = client.chat.completions.create(model="openai/gpt-oss-120b", messages=[{"role": "user", "content": fallback_prompt}])
+        v_rep = c.choices.message.content
+
     detected_loc, clean_lines = None, []
     for line in v_rep.splitlines():
         if line.strip().startswith("LOCATION:"):
-            detected_loc = geocode_location(line.split("LOCATION:", 1)[1].strip())
+            detected_loc = geocode_location(line.split("LOCATION:", 1).strip())
         else:
             clean_lines.append(line)
-    links = "\n---\n### 🔗 One-Click Reverse Image Search\n* **[Google Lens](https://google.com)** | **[Yandex Images](https://yandex.com)** | **[TinEye](https://tineye.com)**"
+
+    if not detected_loc and context_notes:
+        detected_loc = geocode_location(context_notes)
+
+    links = "\n---\n### 🔗 One-Click Reverse Image Search Engines\n* **[Google Lens](https://google.com)** — Match objects, clothing, backgrounds, and reposts.\n* **[Yandex Images](https://yandex.com)** — Strongest engine for facial similarity and social profiles.\n* **[TinEye](https://tineye.com)** — Locate the oldest original upload date of an image."
     return {"report": "\n".join(clean_lines).strip() + links, "map_data": detected_loc}
