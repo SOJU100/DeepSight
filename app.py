@@ -130,3 +130,55 @@ if nav == "🔑 API & Settings":
 elif nav == "🔍 Investigations":
     st.markdown('<div class="section-header">// CASE ARCHIVE & REPORTS</div>', unsafe_allow_html=True)
     for idx, case in enumerate(reversed(st.session_state.investigations)):
+        with st.expander(f"📁 [{case['time']}] {case['mode']} — {case['target']}", expanded=(idx == 0)):
+            render_case_dossier(case, f"arch_{idx}")
+else:
+    top_l, top_r = st.columns(2)
+    with top_l:
+        st.markdown("## // OPERATIONS")
+        st.caption("Command center — live intelligence overview")
+    with top_r:
+        st.write("")
+        with st.popover("➕ NEW INVESTIGATION"):
+            st.markdown('<div style="font-size:11px; font-weight:700; color:#64748b; margin-bottom:8px;">// SELECT OPERATION TYPE</div>', unsafe_allow_html=True)
+            st.markdown('<div class="menu-item-box"><div class="menu-title">➕ FULL INVESTIGATION</div><div class="menu-sub">Age, DOB, Aliases, Addresses + Map, Phones, Emails, Socials, Family & Court Records.</div><div class="menu-badge">● 7 AGENTS READY</div></div>', unsafe_allow_html=True)
+            if st.button("Launch Full Investigation", key="p1", use_container_width=True):
+                open_modal("Full Investigation")
+            st.markdown('<div class="menu-item-box" style="margin-top:8px;"><div class="menu-title">📷 START FROM A PHOTO</div><div class="menu-sub">Scan Facebook & social networks + look-alike facial search links.</div><div class="menu-badge">● VISION + SOCIAL ACTIVE</div></div>', unsafe_allow_html=True)
+            if st.button("Launch Photo Scan", key="p2", use_container_width=True):
+                open_modal("Start From a Photo")
+            st.markdown('<div class="menu-item-box" style="margin-top:8px;"><div class="menu-title">👤 SOCIAL PROFILE SEARCH</div><div class="menu-sub">Find social profiles & usernames tied to an email, phone, or handle.</div><div class="menu-badge">● 200+ PLATFORMS</div></div>', unsafe_allow_html=True)
+            if st.button("Launch Social Search", key="p3", use_container_width=True):
+                open_modal("Social Profile Search")
+
+    total = len(st.session_state.investigations)
+    k1, k2, k3, k4 = st.columns(4)
+    k1.markdown(f'<div class="kpi-card"><div class="kpi-label">YOUR TOTAL</div><div class="kpi-value-blue">{total}</div><div class="kpi-sub">investigations</div></div>', unsafe_allow_html=True)
+    k2.markdown('<div class="kpi-card"><div class="kpi-label">ACTIVE AGENTS</div><div class="kpi-value-orange">7</div><div class="kpi-sub">parallel engines</div></div>', unsafe_allow_html=True)
+    k3.markdown(f'<div class="kpi-card"><div class="kpi-label">ORG TOTAL</div><div class="kpi-value-green">{total}</div><div class="kpi-sub">all analysts</div></div>', unsafe_allow_html=True)
+    k4.markdown(f'<div class="kpi-card"><div class="kpi-label">TODAY</div><div class="kpi-value-white">{total}</div><div class="kpi-sub">new cases</div></div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="section-header">// SELECT INVESTIGATION MODULE</div>', unsafe_allow_html=True)
+    m1, m2, m3 = st.columns(3)
+    with m1:
+        st.markdown('<div class="mode-card"><div class="mode-title">➕ FULL INVESTIGATION</div><div class="mode-desc">Structured profile: Age, DOB, Aliases, Addresses + Map, Phones, Emails, Socials, Family & Criminal Records.</div></div>', unsafe_allow_html=True)
+        if st.button("Select Full Investigation", key="c1", use_container_width=True):
+            open_modal("Full Investigation")
+    with m2:
+        st.markdown('<div class="mode-card"><div class="mode-title">🖼️ START FROM A PHOTO</div><div class="mode-desc">Scan Facebook & social networks + look-alike facial recognition links.</div></div>', unsafe_allow_html=True)
+        if st.button("Select Photo Intel", key="c2", use_container_width=True):
+            open_modal("Start From a Photo")
+    with m3:
+        st.markdown('<div class="mode-card"><div class="mode-title">👤 SOCIAL PROFILE SEARCH</div><div class="mode-desc">Find social media accounts & usernames across 200+ platforms.</div></div>', unsafe_allow_html=True)
+        if st.button("Select Social Search", key="c3", use_container_width=True):
+            open_modal("Social Profile Search")
+
+    st.markdown('<div class="section-header">// RECENT INVESTIGATIONS</div>', unsafe_allow_html=True)
+    if not st.session_state.investigations:
+        with st.container(border=True):
+            st.markdown("<div style='text-align:center; padding: 25px; color: #64748b;'><b>NO INVESTIGATIONS YET</b><br><span style='font-size:12px;'>Enter a Full Name, Email, Phone Number, or Address to build a complete profile dossier.</span></div>", unsafe_allow_html=True)
+    else:
+        for idx, case in enumerate(reversed(st.session_state.investigations)):
+            with st.expander(f"✅ [{case['time']}] {case['mode']} — {case['target']}", expanded=(idx == 0)):
+                render_case_dossier(case, f"d_{idx}")
+        
