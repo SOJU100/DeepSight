@@ -1,8 +1,8 @@
 streamlit
-duckduckgo-search
+tavily-python
+requests
 holehe
 maigret
-langchain-community
 Pillow
 groq
 dnspython
