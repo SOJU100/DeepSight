@@ -58,7 +58,7 @@ def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) ->
     Format the output as a clean Markdown Intelligence Report.
     """
     completion = client.chat.completions.create(
-        model="meta-llama/llama-4-scout-17b-16e-instruct",
+        model="qwen/qwen3.8-27b",
         messages=[{
             "role": "user",
             "content": [
