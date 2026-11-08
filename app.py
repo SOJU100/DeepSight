@@ -54,7 +54,14 @@ def render_case_dossier(case: dict, key_prefix: str):
             st.markdown(f"<div class='bv-lbl'>Job</div><div class='bv-val'>{p.get('job', 'No job found')}</div><div class='bv-lbl'>Education</div><div class='bv-val'>{p.get('education', 'Unknown')}</div>", unsafe_allow_html=True)
         if case.get("map_data"):
             st.map(pd.DataFrame([{"lat": case["map_data"]["lat"], "lon": case["map_data"]["lon"]}]), zoom=11)
-        addrs, phones, emails, socials, unames, rels, crim = p.get("addresses", []), p.get("phones", []), p.get("emails", []), p.get("social_profiles", []), p.get("usernames", []), p.get("relatives", []), p.get("criminal_records", [])
+                addrs = [str(a) if not isinstance(a, dict) else ", ".join(str(v) for v in a.values() if v) for a in p.get("addresses", [])]
+        phones = [str(ph) if not isinstance(ph, dict) else ", ".join(str(v) for v in ph.values() if v) for ph in p.get("phones", [])]
+        emails = p.get("emails", [])
+        socials = p.get("social_profiles", [])
+        unames = [str(u) for u in p.get("usernames", [])]
+        rels = [str(r) if not isinstance(r, dict) else ", ".join(str(v) for v in r.values() if v) for r in p.get("relatives", [])]
+        crim = [str(c) for c in p.get("criminal_records", [])]
+
         with st.expander(f"🏠 Addresses ({len(addrs)})", expanded=True):
             st.write(" · ".join(addrs) if addrs else p.get("primary_address", "None found"))
         with st.expander(f"📞 Phones ({len(phones)})", expanded=True):
