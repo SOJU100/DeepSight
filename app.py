@@ -54,7 +54,7 @@ def render_case_dossier(case: dict, key_prefix: str):
             st.markdown(f"<div class='bv-lbl'>Job</div><div class='bv-val'>{p.get('job', 'No job found')}</div><div class='bv-lbl'>Education</div><div class='bv-val'>{p.get('education', 'Unknown')}</div>", unsafe_allow_html=True)
         if case.get("map_data"):
             st.map(pd.DataFrame([{"lat": case["map_data"]["lat"], "lon": case["map_data"]["lon"]}]), zoom=11)
-                addrs = [str(a) if not isinstance(a, dict) else ", ".join(str(v) for v in a.values() if v) for a in p.get("addresses", [])]
+ addrs = [str(a) if not isinstance(a, dict) else ", ".join(str(v) for v in a.values() if v) for a in p.get("addresses", [])]
         phones = [str(ph) if not isinstance(ph, dict) else ", ".join(str(v) for v in ph.values() if v) for ph in p.get("phones", [])]
         emails = p.get("emails", [])
         socials = p.get("social_profiles", [])
