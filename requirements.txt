@@ -8,3 +8,4 @@ groq
 dnspython
 phonenumbers
 geopy
+imagehash
