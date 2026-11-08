@@ -62,40 +62,17 @@ def agent_phone_people(target: str, handle: str) -> str:
 def parse_json_profile(raw_text: str, fallback_name: str) -> dict:
     try:
         clean = re.sub(r"^```json\s*|\s*```$", "", raw_text.strip(), flags=re.MULTILINE)
-        start = clean.find("{")
-        end = clean.rfind("}") + 1
+        start, end = clean.find("{"), clean.rfind("}") + 1
         if start != -1 and end > start:
             return json.loads(clean[start:end])
     except Exception:
         pass
-    return {
-        "full_name": fallback_name,
-        "location": "Unknown",
-        "age": "Unknown",
-        "dob": "Unknown",
-        "aliases": [],
-        "primary_address": "Not found in public records",
-        "primary_phone": "Not found",
-        "primary_email": fallback_name if "@" in fallback_name else "Not found",
-        "job": "No job found",
-        "education": "Not found",
-        "addresses": [],
-        "phones": [],
-        "emails": [],
-        "social_profiles": [],
-        "usernames": [],
-        "relatives": [],
-        "criminal_records": ["No open court or criminal records found in public web index."],
-        "summary_markdown": raw_text
-    }
+    return {"full_name": fallback_name, "location": "Unknown", "age": "Unknown", "dob": "Unknown", "aliases": [], "primary_address": "Not found", "primary_phone": "Not found", "primary_email": fallback_name if "@" in fallback_name else "Not found", "job": "No job found", "education": "Not found", "addresses": [], "phones": [], "emails": [], "social_profiles": [], "usernames": [], "relatives": [], "criminal_records": ["No open court or criminal records found."], "summary_markdown": raw_text}
 
 def run_text_investigation(target: str, mode: str, api_key: str) -> dict:
     client = Groq(api_key=api_key.strip())
     target = target.strip()
-    if "@" in target:
-    handle, _ = target.split("@", 1)
-else:
-    handle = target.lstrip("@")
+    handle, _, _ = target.lstrip("@").partition("@")
     with ThreadPoolExecutor(max_workers=3) as ex:
         f1 = ex.submit(agent_email, target)
         f2 = ex.submit(agent_socials, handle, target)
@@ -103,39 +80,14 @@ else:
         r1, r2, r3 = f1.result(), f2.result(), f3.result()
 
     prompt = f"""
-    You are DeepSight's Identity Resolution Engine. Extract all verified details for target '{target}' from the OSINT data below and return ONLY valid JSON matching this exact schema (use "Unknown" or empty lists [] if a field is not found—never invent fake facts):
-    {{
-      "full_name": "Full Name or Target",
-      "location": "City, State/Country",
-      "age": "Age or Unknown",
-      "dob": "Month Year or Unknown",
-      "aliases": ["Alias 1", "Alias 2"],
-      "primary_address": "Best Street Address, City, State Zip",
-      "primary_phone": "Best Phone Number",
-      "primary_email": "Best Email Address",
-      "job": "Current/Past Job Title & Company or No job found",
-      "education": "University/School or Unknown",
-      "addresses": ["Address 1", "Address 2"],
-      "phones": ["Phone 1", "Phone 2"],
-      "emails": [{{"email": "user@domain.com", "tag": "Personal or Work"}}],
-      "social_profiles": [{{"platform": "LinkedIn", "url": "https://..."}}],
-      "usernames": ["username1", "username2"],
-      "relatives": ["Relative Name 1", "Relative Name 2"],
-      "criminal_records": ["Court/Docket summary or No open criminal records found"],
-      "summary_markdown": "Detailed analyst notes and follow-up dorks in Markdown"
-    }}
-
-    --- EMAIL DATA ---\n{r1}\n--- SOCIAL DATA ---\n{r2}\n--- PEOPLE, PHONE & CRIMINAL DATA ---\n{r3}
+    DeepSight Identity Resolution Engine. Extract verified details for '{target}' (Mode: {mode}) into ONLY valid JSON:
+    {{"full_name": "", "location": "City, State/Country", "age": "", "dob": "", "aliases": [], "primary_address": "", "primary_phone": "", "primary_email": "", "job": "", "education": "", "addresses": [], "phones": [], "emails": [{{"email": "", "tag": "Personal"}}], "social_profiles": [{{"platform": "", "url": ""}}], "usernames": [], "relatives": [], "criminal_records": [], "summary_markdown": ""}}
+    --- EMAIL ---\n{r1}\n--- SOCIAL ---\n{r2}\n--- PEOPLE, PHONE & CRIMINAL ---\n{r3}
     """
     comp = client.chat.completions.create(model="openai/gpt-oss-120b", messages=[{"role": "user", "content": prompt}])
-    raw_text = next(iter(comp.choices)).message.content
-    profile = parse_json_profile(raw_text, target)
-
-    loc_query = profile.get("primary_address") if profile.get("primary_address") not in ["", "Unknown", "Not found in public records"] else profile.get("location")
-    detected_loc = geocode_location(loc_query)
-    if not detected_loc and any(k in target.lower() for k in ["street", "st.", "ave", "road", "city", "davao", "manila", "il", "ca", "tx", "ny"]):
-        detected_loc = geocode_location(target)
-
+    profile = parse_json_profile(next(iter(comp.choices)).message.content, target)
+    loc_query = profile.get("primary_address") if profile.get("primary_address") not in ["", "Unknown", "Not found"] else profile.get("location")
+    detected_loc = geocode_location(loc_query) or (geocode_location(target) if any(k in target.lower() for k in ["street", "st.", "ave", "road", "city", "davao", "manila", "il", "ca", "tx", "ny"]) else None)
     return {"profile": profile, "report": profile.get("summary_markdown", ""), "map_data": detected_loc}
 
 def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) -> dict:
@@ -146,12 +98,10 @@ def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) ->
     fname = uploaded_image.name
     origin = "Meta CDN (Facebook/Instagram)" if re.search(r"^\d+_\d+_\d+_n\.(jpg|png)", fname.lower()) else "Standard Image File"
     exif_str = f"- **Dimensions:** {w}x{h} px\n- **Visual Fingerprint (pHash):** `{phash}`\n- **Origin:** {origin}"
-
-    search_seed = context_notes.strip() if context_notes else fname.rsplit(".", 1)
+    search_seed = context_notes.strip() if context_notes else fname.rpartition(".")
     with ThreadPoolExecutor(max_workers=2) as ex:
-        fb_fut = ex.submit(web_search, f'"{search_seed}" site:facebook.com OR site:instagram.com OR site:tiktok.com')
-        soc_fut = ex.submit(web_search, f'"{search_seed}" site:x.com OR site:linkedin.com OR site:youtube.com')
-        fb_hits, soc_hits = fb_fut.result(), soc_fut.result()
+        fb_hits = ex.submit(web_search, f'"{search_seed}" site:facebook.com OR site:instagram.com OR site:tiktok.com').result()
+        soc_hits = ex.submit(web_search, f'"{search_seed}" site:x.com OR site:linkedin.com OR site:youtube.com').result()
 
     prompt = f"""
     DeepSight Social & Visual OSINT Lead Analyst. First line ONLY: LOCATION: <City, Country or NONE>
@@ -169,6 +119,5 @@ def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) ->
             clean_lines.append(line)
     if not detected_loc and context_notes:
         detected_loc = geocode_location(context_notes)
-
     links = "\n---\n### 👤 Look-Alike & Social Facial Search Engines\n* **[Yandex Images](https://yandex.com)** — Look-alike faces & matching social profile photos.\n* **[FaceCheck.ID](https://facecheck.id)** — Scans Facebook, Instagram, TikTok, X, LinkedIn & YouTube for matching faces.\n* **[PimEyes](https://pimeyes.com)** — Deep facial similarity scanner for look-alike individuals.\n* **[Google Lens](https://google.com)** — Matches exact reposts, clothing, backgrounds & locations."
     return {"profile": None, "report": "\n".join(clean_lines).strip() + "\n" + links, "map_data": detected_loc}
