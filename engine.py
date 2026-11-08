@@ -1,4 +1,4 @@
-import base64, io, re, subprocess
+import base64, io, json, re, subprocess
 from concurrent.futures import ThreadPoolExecutor
 import dns.resolver, phonenumbers, imagehash
 from phonenumbers import geocoder, carrier, timezone
@@ -10,11 +10,11 @@ from langchain_community.tools import DuckDuckGoSearchRun
 def web_search(query: str) -> str:
     try:
         return DuckDuckGoSearchRun().run(query)
-    except Exception as e:
-        return f"Search note: {str(e)}"
+    except Exception:
+        return ""
 
 def geocode_location(loc_text: str):
-    if not loc_text or loc_text.strip().upper() == "NONE":
+    if not loc_text or loc_text.strip().upper() in ["NONE", "UNKNOWN", "N/A", "NOT FOUND"]:
         return None
     try:
         loc = Nominatim(user_agent="deepsight_osint").geocode(loc_text.strip(), timeout=10)
@@ -26,7 +26,7 @@ def geocode_location(loc_text: str):
 
 def agent_email(target: str) -> str:
     if "@" not in target:
-        return "Skipped (not an email)."
+        return "Not an email input."
     try:
         res = subprocess.run(["holehe", target, "--only-used"], capture_output=True, text=True, timeout=40)
         return res.stdout or "No registrations found."
@@ -54,9 +54,40 @@ def agent_phone_people(target: str, handle: str) -> str:
                 meta = f"Number: {phonenumbers.format_number(p, phonenumbers.PhoneNumberFormat.INTERNATIONAL)} | Region: {geocoder.description_for_number(p, 'en')} | Carrier: {carrier.name_for_number(p, 'en') or 'Unknown'}"
         except Exception:
             pass
-    addr = web_search(f'"{target}" OR "{handle}" "address" OR "phone" OR "relatives" OR site:spokeo.com OR site:beenverified.com')
+    addr = web_search(f'"{target}" OR "{handle}" "address" OR "phone" OR "age" OR "born" OR "relatives" OR site:spokeo.com OR site:beenverified.com OR site:truepeoplesearch.com')
+    edu_job = web_search(f'"{target}" OR "{handle}" "University" OR "College" OR "Education" OR "worked at" OR "employed" OR site:linkedin.com')
     crim = web_search(f'"{target}" OR "{handle}" "court" OR "docket" OR "criminal" OR "arrest" OR "warrant" OR site:judiciary.gov.ph OR site:courtlistener.com')
-    return f"{meta}\nPEOPLE & ADDRESS:\n{addr[:1200]}\nCOURT & CRIMINAL:\n{crim[:1200]}"
+    return f"{meta}\nPEOPLE & ADDRESS:\n{addr[:1300]}\nJOB & EDUCATION:\n{edu_job[:1000]}\nCOURT & CRIMINAL:\n{crim[:1200]}"
+
+def parse_json_profile(raw_text: str, fallback_name: str) -> dict:
+    try:
+        clean = re.sub(r"^```json\s*|\s*```$", "", raw_text.strip(), flags=re.MULTILINE)
+        start = clean.find("{")
+        end = clean.rfind("}") + 1
+        if start != -1 and end > start:
+            return json.loads(clean[start:end])
+    except Exception:
+        pass
+    return {
+        "full_name": fallback_name,
+        "location": "Unknown",
+        "age": "Unknown",
+        "dob": "Unknown",
+        "aliases": [],
+        "primary_address": "Not found in public records",
+        "primary_phone": "Not found",
+        "primary_email": fallback_name if "@" in fallback_name else "Not found",
+        "job": "No job found",
+        "education": "Not found",
+        "addresses": [],
+        "phones": [],
+        "emails": [],
+        "social_profiles": [],
+        "usernames": [],
+        "relatives": [],
+        "criminal_records": ["No open court or criminal records found in public web index."],
+        "summary_markdown": raw_text
+    }
 
 def run_text_investigation(target: str, mode: str, api_key: str) -> dict:
     client = Groq(api_key=api_key.strip())
@@ -69,28 +100,40 @@ def run_text_investigation(target: str, mode: str, api_key: str) -> dict:
         r1, r2, r3 = f1.result(), f2.result(), f3.result()
 
     prompt = f"""
-    Chief Intelligence Officer for DeepSight. Synthesize all reconnaissance on '{target}' (Mode: {mode}).
-    On the VERY FIRST LINE output ONLY: LOCATION: <City, Country or Street Address or NONE>
-    --- EMAIL ---\n{r1}\n--- SOCIALS ---\n{r2}\n--- PHONE, PEOPLE & CRIMINAL ---\n{r3}
-    After LOCATION, format with Markdown headers:
-    ### 1. Executive Identity Summary (Country, Location & Confidence)
-    ### 2. Contact Intelligence (Phone Numbers, Carriers, Emails & Physical Addresses)
-    ### 3. Complete Social Media & Online Footprint
-    ### 4. Open Criminal, Court & Legal Records
-    ### 5. Recommended Follow-Up OSINT Dorks
+    You are DeepSight's Identity Resolution Engine. Extract all verified details for target '{target}' from the OSINT data below and return ONLY valid JSON matching this exact schema (use "Unknown" or empty lists [] if a field is not found—never invent fake facts):
+    {{
+      "full_name": "Full Name or Target",
+      "location": "City, State/Country",
+      "age": "Age or Unknown",
+      "dob": "Month Year or Unknown",
+      "aliases": ["Alias 1", "Alias 2"],
+      "primary_address": "Best Street Address, City, State Zip",
+      "primary_phone": "Best Phone Number",
+      "primary_email": "Best Email Address",
+      "job": "Current/Past Job Title & Company or No job found",
+      "education": "University/School or Unknown",
+      "addresses": ["Address 1", "Address 2"],
+      "phones": ["Phone 1", "Phone 2"],
+      "emails": [{{"email": "user@domain.com", "tag": "Personal or Work"}}],
+      "social_profiles": [{{"platform": "LinkedIn", "url": "https://..."}}],
+      "usernames": ["username1", "username2"],
+      "relatives": ["Relative Name 1", "Relative Name 2"],
+      "criminal_records": ["Court/Docket summary or No open criminal records found"],
+      "summary_markdown": "Detailed analyst notes and follow-up dorks in Markdown"
+    }}
+
+    --- EMAIL DATA ---\n{r1}\n--- SOCIAL DATA ---\n{r2}\n--- PEOPLE, PHONE & CRIMINAL DATA ---\n{r3}
     """
     comp = client.chat.completions.create(model="openai/gpt-oss-120b", messages=[{"role": "user", "content": prompt}])
     raw_text = next(iter(comp.choices)).message.content
-    detected_loc, clean_lines = None, []
-    for line in raw_text.splitlines():
-        if line.strip().startswith("LOCATION:"):
-            _, loc_part = line.split("LOCATION:", 1)
-            detected_loc = geocode_location(loc_part.strip())
-        else:
-            clean_lines.append(line)
-    if not detected_loc and any(k in target.lower() for k in ["street", "st.", "ave", "road", "city", "davao", "manila"]):
+    profile = parse_json_profile(raw_text, target)
+
+    loc_query = profile.get("primary_address") if profile.get("primary_address") not in ["", "Unknown", "Not found in public records"] else profile.get("location")
+    detected_loc = geocode_location(loc_query)
+    if not detected_loc and any(k in target.lower() for k in ["street", "st.", "ave", "road", "city", "davao", "manila", "il", "ca", "tx", "ny"]):
         detected_loc = geocode_location(target)
-    return {"report": "\n".join(clean_lines).strip(), "map_data": detected_loc}
+
+    return {"profile": profile, "report": profile.get("summary_markdown", ""), "map_data": detected_loc}
 
 def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) -> dict:
     client = Groq(api_key=api_key.strip())
@@ -124,6 +167,5 @@ def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) ->
     if not detected_loc and context_notes:
         detected_loc = geocode_location(context_notes)
 
-    links = "\n---\n### 👤 Look-Alike & Social Facial Search Engines\n* **[Yandex Images](https://yandex.com)** — Best for finding look-alike faces & matching social profile photos.\n* **[FaceCheck.ID](https://facecheck.id)** — Scans Facebook, Instagram, TikTok, X, LinkedIn & YouTube for matching faces.\n* **[PimEyes](https://pimeyes.com)** — Deep facial similarity scanner for look-alike individuals.\n* **[Google Lens](https://google.com)** — Matches exact reposts, clothing, backgrounds & locations."
-    return {"report": "\n".join(clean_lines).strip() + "\n" + links, "map_data": detected_loc}
-
+    links = "\n---\n### 👤 Look-Alike & Social Facial Search Engines\n* **[Yandex Images](https://yandex.com)** — Look-alike faces & matching social profile photos.\n* **[FaceCheck.ID](https://facecheck.id)** — Scans Facebook, Instagram, TikTok, X, LinkedIn & YouTube for matching faces.\n* **[PimEyes](https://pimeyes.com)** — Deep facial similarity scanner for look-alike individuals.\n* **[Google Lens](https://google.com)** — Matches exact reposts, clothing, backgrounds & locations."
+    return {"profile": None, "report": "\n".join(clean_lines).strip() + "\n" + links, "map_data": detected_loc}
