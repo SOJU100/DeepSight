@@ -63,7 +63,7 @@ def run_text_investigation(target: str, mode: str, api_key: str) -> str:
         model=model_id,
         messages=[{"role": "user", "content": prompt}]
     )
-    return completion.choices.message.content
+    return completion.choices[0].message.content
 
 def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) -> str:
     client = Groq(api_key=api_key.strip())
@@ -92,7 +92,7 @@ def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) ->
                     ]
                 }]
             )
-            return completion.choices.message.content
+            return completion.choices[0].message.content
         except Exception as e:
             last_err = str(e)
             continue
