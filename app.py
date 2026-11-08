@@ -106,7 +106,7 @@ def open_modal(selected_mode="Full Investigation"):
     st.caption(f"// ACTIVE OPERATION TYPE: {selected_mode.upper()}")
     if selected_mode == "Start From a Photo":
         uploaded_file = st.file_uploader("Upload Target Image (JPG, PNG)", type=["jpg", "jpeg", "png"])
-        ctx = st.text_input("Optional Context / Suspected Name or City", placeholder="e.g., Davao City or John Lawson...")
+        ctx = st.text_input("Optional Context / Suspected Name or City", placeholder="e.g., Davao City or Marleen R. Avey...")
         if st.button("🛰️ Run Visual & Social Scan", type="primary", use_container_width=True):
             if api_key and uploaded_file:
                 with st.status("Scanning image fingerprint & social media...", expanded=True):
@@ -116,11 +116,11 @@ def open_modal(selected_mode="Full Investigation"):
                     st.session_state.investigations.append({"time": datetime.now().strftime("%H:%M"), "mode": "Photo Intel", "target": uploaded_file.name, "profile": res.get("profile"), "report": res.get("report", ""), "map_data": res.get("map_data")})
                     st.rerun()
     else:
-        target = st.text_input("Target Identifier (Full Name, Email, Phone, or Address)", placeholder="e.g., John Edward Lawson, scoob635@hotmail.com, or (815) 355-0080")
+        target = st.text_input("Target Identifier (Full Name, Email, Phone, or Address)", placeholder="e.g., Marleen R. Avey, dsdet35@hotmail.com, or (815) 335-0010")
         if st.button("🛰️ Deploy Intelligence Agents", type="primary", use_container_width=True):
             if api_key and target:
                 os.environ["GEMINI_API_KEY"] = api_key
-                with st.status(f"Compiling BeenVerified-style dossier for '{target}'...", expanded=True):
+                with st.status(f"⚡ Working on it — Running DeepSight multi-agent sweep on '{target}'...", expanded=True):
                     res = run_text_investigation(target, selected_mode, api_key)
                     if isinstance(res, str):
                         res = {"profile": None, "report": res, "map_data": None}
