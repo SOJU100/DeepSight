@@ -67,7 +67,8 @@ def agent_breach_dns(target: str, handle: str) -> str:
     leak = web_search(f'"{target}" OR "{handle}" "breach" OR "leaked" OR "database" OR "password" OR site:pastebin.com')
     dns_info = ""
     if "@" in target:
-        dom = target.split("@").lower()
+        _, dom = target.split("@", 1)
+        dom = dom.lower()
         try:
             mx = [str(r.exchange) for r in dns.resolver.resolve(dom, "MX")]
             dns_info = f"Domain: {dom} | MX: {', '.join(mx)}"
@@ -78,7 +79,7 @@ def agent_breach_dns(target: str, handle: str) -> str:
 def run_text_investigation(target: str, mode: str, api_key: str) -> dict:
     client = Groq(api_key=api_key.strip())
     target = target.strip()
-    handle = target.split("@") if "@" in target else target.lstrip("@")
+    handle = target.split("@", 1)[0] if "@" in target else target.lstrip("@")
     with ThreadPoolExecutor(max_workers=5) as ex:
         f1 = ex.submit(agent_email, target)
         f2 = ex.submit(agent_socials, handle, target)
@@ -99,11 +100,12 @@ def run_text_investigation(target: str, mode: str, api_key: str) -> dict:
     ### 5. Breaches, Relatives & Recommended Follow-Up Dorks
     """
     comp = client.chat.completions.create(model="openai/gpt-oss-120b", messages=[{"role": "user", "content": prompt}])
-    raw_text = comp.choices.message.content
+    raw_text = next(iter(comp.choices)).message.content
     detected_loc, clean_lines = None, []
     for line in raw_text.splitlines():
         if line.strip().startswith("LOCATION:"):
-            detected_loc = geocode_location(line.split("LOCATION:", 1).strip())
+            _, loc_part = line.split("LOCATION:", 1)
+            detected_loc = geocode_location(loc_part.strip())
         else:
             clean_lines.append(line)
     if not detected_loc and any(k in target.lower() for k in ["street", "st.", "ave", "road", "city", "davao", "manila"]):
@@ -117,7 +119,6 @@ def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) ->
     fmt = raw_img.format or "Unknown"
 
     exif_lines = [f"- **Dimensions & Format:** {w}x{h} px ({fmt})"]
-    gps_coords = None
     try:
         ex = raw_img._getexif()
         if ex:
@@ -131,7 +132,6 @@ def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) ->
         pass
     exif_str = "\n".join(exif_lines)
 
-    # Check if your Groq account currently has any vision model enabled
     vision_model = None
     try:
         for m in client.models.list().data:
@@ -151,11 +151,10 @@ def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) ->
             b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
             prompt = f"Senior OSINT Visual Analyst. First line ONLY: LOCATION: <City, Country or NONE>\nEXIF:\n{exif_str}\nContext: {context_notes}\nSections: ### 1. EXIF & Digital Forensics ### 2. Visual & Geolocation Clues ### 3. Actionable Search Dorks"
             c = client.chat.completions.create(model=vision_model, messages=[{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}]}])
-            v_rep = c.choices.message.content
+            v_rep = next(iter(c.choices)).message.content
         except Exception:
             v_rep = ""
 
-    # Fallback to text-based forensic & context intelligence if vision quota is unavailable
     if not v_rep:
         fallback_prompt = f"""
         You are a Senior OSINT Digital Forensics & Geolocation Analyst.
@@ -172,12 +171,13 @@ def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) ->
         ### 3. Targeted OSINT Search Queries & Next Steps
         """
         c = client.chat.completions.create(model="openai/gpt-oss-120b", messages=[{"role": "user", "content": fallback_prompt}])
-        v_rep = c.choices.message.content
+        v_rep = next(iter(c.choices)).message.content
 
     detected_loc, clean_lines = None, []
     for line in v_rep.splitlines():
         if line.strip().startswith("LOCATION:"):
-            detected_loc = geocode_location(line.split("LOCATION:", 1).strip())
+            _, loc_part = line.split("LOCATION:", 1)
+            detected_loc = geocode_location(loc_part.strip())
         else:
             clean_lines.append(line)
 
