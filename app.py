@@ -8,11 +8,9 @@ from crewai import Agent, Task, Crew, Process, LLM
 from crewai.tools import tool
 from langchain_community.tools import DuckDuckGoSearchRun
 
-# --- PAGE & BRAND CONFIGURATION ---
 APP_NAME = "DeepSight"
 st.set_page_config(page_title=f"{APP_NAME} — Intelligence Platform", page_icon="🛡️", layout="wide")
 
-# --- CUSTOM TACTICAL DARK THEME CSS ---
 st.markdown("""
 <style>
     .stApp { background-color: #0b0f19; color: #e2e8f0; }
@@ -31,13 +29,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- SESSION STATE INITIALIZATION ---
 if "investigations" not in st.session_state:
     st.session_state.investigations = []
 if "active_mode" not in st.session_state:
     st.session_state.active_mode = "Full Investigation"
 
-# --- SIDEBAR NAVIGATION & ENCRYPTED API KEY ---
 with st.sidebar:
     st.markdown(f"### 🛡️ {APP_NAME}")
     st.caption("INTELLIGENCE PLATFORM")
@@ -56,7 +52,6 @@ with st.sidebar:
         else:
             st.warning("● API INACTIVE — Add key in Secrets")
 
-# --- DEFINE OSINT TOOLS ---
 @tool("Email Footprint Scanner")
 def scan_email(email: str) -> str:
     """Checks where an email address is registered across 100+ websites using Holehe."""
@@ -72,7 +67,6 @@ def web_search(query: str) -> str:
     search = DuckDuckGoSearchRun()
     return search.run(query)
 
-# --- INVESTIGATION ENGINES ---
 def run_text_investigation(target: str, mode: str, gemini_key: str) -> str:
     gemini_llm = LLM(model="gemini/gemini-2.5-flash", api_key=gemini_key)
 
@@ -137,7 +131,6 @@ def run_photo_investigation(uploaded_image, context_notes: str, gemini_key: str)
     response = model.generate_content([prompt, img])
     return response.text
 
-# --- MAIN PAGE ROUTING ---
 if nav == "🔑 API & Settings":
     st.markdown('<div class="section-header">// API ACCESS & CONFIGURATION</div>', unsafe_allow_html=True)
     st.info("Your API key is managed securely via Streamlit Secrets or the left sidebar.")
@@ -154,7 +147,7 @@ elif nav == "🔍 Investigations":
                 st.download_button("📥 Export Markdown Dossier", data=case["report"], file_name=f"deepsight_{case['target']}.md", mime="text/markdown", key=f"dl_{idx}")
 
 else:
-    top_l, top_r = st.columns()
+    top_l, top_r = st.columns([3, 1])
     with top_l:
         st.markdown("## // OPERATIONS")
         st.caption("Command center — live intelligence overview")
@@ -177,3 +170,15 @@ else:
     st.markdown('<div class="section-header">// SELECT INVESTIGATION MODULE</div>', unsafe_allow_html=True)
     m1, m2, m3 = st.columns(3)
     with m1:
+        st.markdown('<div class="mode-card"><div class="mode-title">➕ FULL INVESTIGATION</div><div class="mode-desc">Deep multi-source sweep across registered accounts, public records, and open web mentions.</div></div>', unsafe_allow_html=True)
+        if st.button("Select Full Investigation", use_container_width=True):
+            st.session_state.active_mode = "Full Investigation"
+    with m2:
+        st.markdown('<div class="mode-card"><div class="mode-title">🖼️ START FROM A PHOTO</div><div class="mode-desc">Analyze an image for geolocation clues, landmarks, signage, and reverse-search leads.</div></div>', unsafe_allow_html=True)
+        if st.button("Select Photo Intel", use_container_width=True):
+            st.session_state.active_mode = "Start From a Photo"
+    with m3:
+        st.markdown('<div class="mode-card"><div class="mode-title">👤 SOCIAL PROFILE SEARCH</div><div class="mode-desc">Find social media accounts and online handles tied to an email address or username.</div></div>', unsafe_allow_html=True)
+        if st.button("Select Social Search", use_container_width=True):
+            st.session_state.active_mode = "Social Profile Search"
+
