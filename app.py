@@ -4,7 +4,8 @@ import streamlit as st
 from engine import run_text_investigation, run_photo_investigation
 
 APP_NAME = "DeepSight"
-st.set_page_config(page_title=f"{APP_NAME} — Intelligence Platform", page_icon="🛡️", layout="wide")
+page_icon = "logo.png" if os.path.exists("logo.png") else "🛡️"
+st.set_page_config(page_title=f"{APP_NAME} — Intelligence Platform", page_icon=page_icon, layout="wide")
 
 st.markdown("""
 <style>
@@ -34,9 +35,13 @@ if "investigations" not in st.session_state:
     st.session_state.investigations = []
 
 with st.sidebar:
-    st.markdown(f"### 🛡️ {APP_NAME}")
+    if os.path.exists("logo.png"):
+        st.image("logo.png", use_container_width=True)
+    else:
+        st.markdown(f"### 🛡️ {APP_NAME}")
     st.caption("INTELLIGENCE PLATFORM")
     st.divider()
+    
     nav = st.radio("NAVIGATION", ["📊 Dashboard", "🔍 Investigations", "🔑 API & Settings"], label_visibility="collapsed")
     st.divider()
     api_key = st.secrets["GEMINI_API_KEY"] if "GEMINI_API_KEY" in st.secrets else st.text_input("Gemini API Key", type="password")
