@@ -29,6 +29,12 @@ st.markdown("""
     .menu-title { font-size: 13px; font-weight: 800; color: #f8fafc; }
     .menu-sub { font-size: 11px; color: #94a3b8; margin-top: 3px; }
     .menu-badge { font-size: 10px; font-weight: 700; color: #10b981; margin-top: 5px; }
+    /* BeenVerified Style Dossier Card */
+    .bv-header { background-color: #111827; border: 1px solid #1e293b; border-radius: 10px; padding: 22px; margin-bottom: 14px; }
+    .bv-name { font-size: 24px; font-weight: 800; color: #f8fafc; margin-bottom: 2px; }
+    .bv-loc { font-size: 14px; color: #3b82f6; font-weight: 600; margin-bottom: 14px; }
+    .bv-field-label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+    .bv-field-val { font-size: 14px; font-weight: 600; color: #e2e8f0; margin-bottom: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -36,12 +42,91 @@ if "investigations" not in st.session_state:
     st.session_state.investigations = []
 
 def render_case_dossier(case: dict, key_prefix: str):
-    if case.get("map_data"):
-        md = case["map_data"]
-        st.info(f"📍 **Geolocated Position:** {md['address']} (`{md['lat']:.4f}, {md['lon']:.4f}`)")
-        st.map(pd.DataFrame([{"lat": md["lat"], "lon": md["lon"]}]), zoom=11)
-    st.markdown(case["report"])
-    st.download_button("📥 Download Full Dossier (.md)", data=case["report"], file_name=f"deepsight_{case['target']}.md", mime="text/markdown", key=key_prefix)
+    p = case.get("profile")
+    if p:
+        aliases_str = ", ".join(p.get("aliases", [])) if p.get("aliases") else "None listed"
+        st.markdown(f"""
+        <div class="bv-header">
+            <div class="bv-name">{p.get('full_name', case['target'])}</div>
+            <div class="bv-loc">📍 {p.get('location', 'Location Unknown')}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.markdown(f"<div class='bv-field-label'>Age</div><div class='bv-field-val'>{p.get('age', 'Unknown')}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='bv-field-label'>Date of Birth</div><div class='bv-field-val'>{p.get('dob', 'Unknown')}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='bv-field-label'>Aliases</div><div class='bv-field-val'>{aliases_str}</div>", unsafe_allow_html=True)
+        with c2:
+            st.markdown(f"<div class='bv-field-label'>Primary Address</div><div class='bv-field-val'>{p.get('primary_address', 'Not found')}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='bv-field-label'>Primary Phone</div><div class='bv-field-val'>{p.get('primary_phone', 'Not found')}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='bv-field-label'>Primary Email</div><div class='bv-field-val'>{p.get('primary_email', 'Not found')}</div>", unsafe_allow_html=True)
+        with c3:
+            st.markdown(f"<div class='bv-field-label'>Job</div><div class='bv-field-val'>{p.get('job', 'No job found')}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='bv-field-label'>Education</div><div class='bv-field-val'>{p.get('education', 'Unknown')}</div>", unsafe_allow_html=True)
+
+        if case.get("map_data"):
+            md = case["map_data"]
+            st.map(pd.DataFrame([{"lat": md["lat"], "lon": md["lon"]}]), zoom=11)
+
+        st.markdown("#### Contact & Background Records")
+        addrs = p.get("addresses", [])
+        with st.expander(f"🏠 Addresses ({len(addrs)})", expanded=True):
+            st.write(" · ".join(addrs) if addrs else p.get("primary_address", "No additional addresses found."))
+
+        phones = p.get("phones", [])
+        with st.expander(f"📞 Phones ({len(phones)})", expanded=True):
+            st.write(" · ".join(phones) if phones else p.get("primary_phone", "No additional phone numbers found."))
+
+        emails = p.get("emails", [])
+        with st.expander(f"✉️ Emails ({len(emails)})", expanded=True):
+            if emails:
+                for em in emails:
+                    if isinstance(em, dict):
+                        st.markdown(f"- **{em.get('email', '')}** · *{em.get('tag', 'Personal')}*")
+                    else:
+                        st.markdown(f"- **{em}**")
+            else:
+                st.write(p.get("primary_email", "No additional emails found."))
+
+        socials = p.get("social_profiles", [])
+        with st.expander(f"🌐 Social Profiles ({len(socials)})", expanded=True):
+            if socials:
+                for sp in socials:
+                    if isinstance(sp, dict):
+                        st.markdown(f"- **{sp.get('platform', 'Profile')}:** [{sp.get('url', '')}]({sp.get('url', '')})")
+                    else:
+                        st.markdown(f"- {sp}")
+            else:
+                st.write("No direct social links confirmed in public index.")
+
+        unames = p.get("usernames", [])
+        with st.expander(f"🆔 Usernames ({len(unames)})", expanded=False):
+            for u in unames:
+                st.markdown(f"- `{u}`")
+            if not unames:
+                st.write("No associated usernames found.")
+
+        rels = p.get("relatives", [])
+        with st.expander(f"👨‍👩‍👧‍👦 Family & Relatives ({len(rels)})", expanded=False):
+            st.write(" · ".join(rels) if rels else "No family or associates listed in public records.")
+
+        crim = p.get("criminal_records", [])
+        with st.expander(f"⚖️ Criminal & Court Records ({len(crim)})", expanded=True):
+            for c_item in crim:
+                st.markdown(f"- {c_item}")
+
+        if p.get("summary_markdown"):
+            with st.expander("📋 Full Analyst Notes & Follow-Up Dorks", expanded=False):
+                st.markdown(p["summary_markdown"])
+    else:
+        if case.get("map_data"):
+            md = case["map_data"]
+            st.info(f"📍 **Geolocated Position:** {md['address']}")
+            st.map(pd.DataFrame([{"lat": md["lat"], "lon": md["lon"]}]), zoom=11)
+        st.markdown(case.get("report", ""))
+
+    st.download_button("📥 Download Full Dossier (.md)", data=str(case.get("report", "")), file_name=f"deepsight_{case['target']}.md", mime="text/markdown", key=key_prefix)
 
 with st.sidebar:
     if os.path.exists("logo.png"):
@@ -58,90 +143,20 @@ with st.sidebar:
     else:
         st.warning("● API INACTIVE")
 
-@st.dialog("🚀 Launch 7-Agent Investigation", width="large")
+@st.dialog("🚀 Launch Investigation", width="large")
 def open_modal(selected_mode="Full Investigation"):
     st.caption(f"// ACTIVE OPERATION TYPE: {selected_mode.upper()}")
     if selected_mode == "Start From a Photo":
         uploaded_file = st.file_uploader("Upload Target Image (JPG, PNG)", type=["jpg", "jpeg", "png"])
-        ctx = st.text_input("Optional Context", placeholder="e.g., Suspect seen near a coastal highway...")
-        if st.button("🛰️ Run Visual Intelligence Scan", type="primary", use_container_width=True):
+        ctx = st.text_input("Optional Context / Suspected Name or City", placeholder="e.g., Davao City or John Lawson...")
+        if st.button("🛰️ Run Visual & Social Scan", type="primary", use_container_width=True):
             if api_key and uploaded_file:
-                with st.status("Analyzing EXIF & visual geolocation clues...", expanded=True):
+                with st.status("Scanning image fingerprint & social media...", expanded=True):
                     res = run_photo_investigation(uploaded_file, ctx, api_key)
-                    st.session_state.investigations.append({"time": datetime.now().strftime("%H:%M"), "mode": "Photo Intel", "target": uploaded_file.name, "report": res["report"], "map_data": res["map_data"]})
+                    st.session_state.investigations.append({"time": datetime.now().strftime("%H:%M"), "mode": "Photo Intel", "target": uploaded_file.name, "profile": res.get("profile"), "report": res.get("report", ""), "map_data": res.get("map_data")})
                     st.rerun()
     else:
-        target = st.text_input("Target Identifier (Email, Phone +CountryCode, Full Name, or Address)", placeholder="e.g., +639171234567, john@domain.com, or 'Juan Dela Cruz'")
-        if st.button("🛰️ Deploy All 7 Intelligence Agents", type="primary", use_container_width=True):
+        target = st.text_input("Target Identifier (Full Name, Email, Phone, or Address)", placeholder="e.g., John Edward Lawson, scoob635@hotmail.com, or (815) 355-0080")
+        if st.button("🛰️ Deploy Intelligence Agents", type="primary", use_container_width=True):
             if api_key and target:
                 os.environ["GEMINI_API_KEY"] = api_key
-                with st.status(f"Deploying 7 Parallel Agents on '{target}'...", expanded=True):
-                    st.write("🔍 **Agents 1 & 2:** Scanning emails, 200+ social networks & handles...")
-                    st.write("📞 **Agents 3 & 4:** Running phone carrier lookup, address & people directories...")
-                    st.write("⚖️ **Agents 5, 6 & 7:** Checking open court/criminal dockets, breaches & DNS...")
-                    res = run_text_investigation(target, selected_mode, api_key)
-                    st.session_state.investigations.append({"time": datetime.now().strftime("%H:%M"), "mode": selected_mode, "target": target, "report": res["report"], "map_data": res["map_data"]})
-                    st.rerun()
-
-if nav == "🔑 API & Settings":
-    st.markdown('<div class="section-header">// 7-AGENT SYSTEM ARCHITECTURE</div>', unsafe_allow_html=True)
-    st.info("Active Modules: Holehe | Maigret (200 Sites) | PhoneNumbers Telecom | Nominatim Map Geocoder | People Directories | Court & Criminal Dockets | Breach & DNS Recon")
-
-elif nav == "🔍 Investigations":
-    st.markdown('<div class="section-header">// CASE ARCHIVE & REPORTS</div>', unsafe_allow_html=True)
-    if not st.session_state.investigations:
-        st.info("No completed investigations yet.")
-    for idx, case in enumerate(reversed(st.session_state.investigations)):
-        with st.expander(f"📁 [{case['time']}] {case['mode']} — {case['target']}", expanded=(idx == 0)):
-            render_case_dossier(case, f"arch_{idx}")
-
-else:
-    top_l, top_r = st.columns(2)
-    with top_l:
-        st.markdown("## // OPERATIONS")
-        st.caption("Command center — 7-agent parallel intelligence suite")
-    with top_r:
-        st.write("")
-        with st.popover("➕ NEW INVESTIGATION"):
-            st.markdown('<div style="font-size:11px; font-weight:700; color:#64748b; margin-bottom:8px;">// SELECT OPERATION TYPE</div>', unsafe_allow_html=True)
-            st.markdown('<div class="menu-item-box"><div class="menu-title">➕ FULL INVESTIGATION</div><div class="menu-sub">7-agent sweep: Phone, Address + Map, Email, All Socials & Court Records.</div><div class="menu-badge">● 7 AGENTS READY</div></div>', unsafe_allow_html=True)
-            if st.button("Launch Full Investigation", key="p1", use_container_width=True):
-                open_modal("Full Investigation")
-            st.markdown('<div class="menu-item-box" style="margin-top:8px;"><div class="menu-title">📷 START FROM A PHOTO</div><div class="menu-sub">Extract EXIF metadata, geolocate clues on a map & generate reverse searches.</div><div class="menu-badge">● VISION + MAP ACTIVE</div></div>', unsafe_allow_html=True)
-            if st.button("Launch Photo Scan", key="p2", use_container_width=True):
-                open_modal("Start From a Photo")
-            st.markdown('<div class="menu-item-box" style="margin-top:8px;"><div class="menu-title">👤 SOCIAL PROFILE SEARCH</div><div class="menu-sub">Deep 200-platform handle & social media account sweep.</div><div class="menu-badge">● 200+ PLATFORMS</div></div>', unsafe_allow_html=True)
-            if st.button("Launch Social Search", key="p3", use_container_width=True):
-                open_modal("Social Profile Search")
-
-    total = len(st.session_state.investigations)
-    k1, k2, k3, k4 = st.columns(4)
-    k1.markdown(f'<div class="kpi-card"><div class="kpi-label">YOUR TOTAL</div><div class="kpi-value-blue">{total}</div><div class="kpi-sub">investigations</div></div>', unsafe_allow_html=True)
-    k2.markdown('<div class="kpi-card"><div class="kpi-label">ACTIVE AGENTS</div><div class="kpi-value-orange">7</div><div class="kpi-sub">parallel engines</div></div>', unsafe_allow_html=True)
-    k3.markdown(f'<div class="kpi-card"><div class="kpi-label">ORG TOTAL</div><div class="kpi-value-green">{total}</div><div class="kpi-sub">all analysts</div></div>', unsafe_allow_html=True)
-    k4.markdown(f'<div class="kpi-card"><div class="kpi-label">TODAY</div><div class="kpi-value-white">{total}</div><div class="kpi-sub">new cases</div></div>', unsafe_allow_html=True)
-
-    st.markdown('<div class="section-header">// SELECT INVESTIGATION MODULE</div>', unsafe_allow_html=True)
-    m1, m2, m3 = st.columns(3)
-    with m1:
-        st.markdown('<div class="mode-card"><div class="mode-title">➕ FULL INVESTIGATION</div><div class="mode-desc">Phone lookup, street address map, email, social media accounts & open criminal records.</div></div>', unsafe_allow_html=True)
-        if st.button("Select Full Investigation", key="c1", use_container_width=True):
-            open_modal("Full Investigation")
-    with m2:
-        st.markdown('<div class="mode-card"><div class="mode-title">🖼️ START FROM A PHOTO</div><div class="mode-desc">Analyze an image for geolocation clues, landmarks, EXIF data & map coordinates.</div></div>', unsafe_allow_html=True)
-        if st.button("Select Photo Intel", key="c2", use_container_width=True):
-                        open_modal("Start From a Photo")
-    with m3:
-        st.markdown('<div class="mode-card"><div class="mode-title">👤 SOCIAL PROFILE SEARCH</div><div class="mode-desc">Find social media accounts across 200+ networks tied to an email, phone, or handle.</div></div>', unsafe_allow_html=True)
-        if st.button("Select Social Search", key="c3", use_container_width=True):
-            open_modal("Social Profile Search")
-
-    st.markdown('<div class="section-header">// RECENT INVESTIGATIONS</div>', unsafe_allow_html=True)
-    if not st.session_state.investigations:
-        with st.container(border=True):
-            st.markdown("<div style='text-align:center; padding: 25px; color: #64748b;'><b>NO INVESTIGATIONS YET</b><br><span style='font-size:12px;'>Enter a phone number (+63...), street address, email, or name to deploy all 7 agents.</span></div>", unsafe_allow_html=True)
-    else:
-        for idx, case in enumerate(reversed(st.session_state.investigations)):
-            with st.expander(f"✅ [{case['time']}] {case['mode']} — {case['target']}", expanded=(idx == 0)):
-                render_case_dossier(case, f"d_{idx}")
-
