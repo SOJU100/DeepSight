@@ -40,7 +40,10 @@ with st.sidebar:
     nav = st.radio("NAVIGATION", ["📊 Dashboard", "🔍 Investigations", "🔑 API & Settings"], label_visibility="collapsed")
     st.divider()
     api_key = st.secrets["GEMINI_API_KEY"] if "GEMINI_API_KEY" in st.secrets else st.text_input("Gemini API Key", type="password")
-    st.success("● API ACTIVE (Encrypted Vault)") if api_key else st.warning("● API INACTIVE")
+    if api_key:
+        st.success("● API ACTIVE (Encrypted Vault)")
+    else:
+        st.warning("● API INACTIVE")
 
 @st.dialog("🚀 Launch Investigation", width="large")
 def open_modal(selected_mode="Full Investigation"):
