@@ -130,3 +130,18 @@ else:
     with m2:
         st.markdown('<div class="mode-card"><div class="mode-title">🖼️ START FROM A PHOTO</div><div class="mode-desc">Analyze an image for geolocation clues, landmarks, EXIF data & map coordinates.</div></div>', unsafe_allow_html=True)
         if st.button("Select Photo Intel", key="c2", use_container_width=True):
+                        open_modal("Start From a Photo")
+    with m3:
+        st.markdown('<div class="mode-card"><div class="mode-title">👤 SOCIAL PROFILE SEARCH</div><div class="mode-desc">Find social media accounts across 200+ networks tied to an email, phone, or handle.</div></div>', unsafe_allow_html=True)
+        if st.button("Select Social Search", key="c3", use_container_width=True):
+            open_modal("Social Profile Search")
+
+    st.markdown('<div class="section-header">// RECENT INVESTIGATIONS</div>', unsafe_allow_html=True)
+    if not st.session_state.investigations:
+        with st.container(border=True):
+            st.markdown("<div style='text-align:center; padding: 25px; color: #64748b;'><b>NO INVESTIGATIONS YET</b><br><span style='font-size:12px;'>Enter a phone number (+63...), street address, email, or name to deploy all 7 agents.</span></div>", unsafe_allow_html=True)
+    else:
+        for idx, case in enumerate(reversed(st.session_state.investigations)):
+            with st.expander(f"✅ [{case['time']}] {case['mode']} — {case['target']}", expanded=(idx == 0)):
+                render_case_dossier(case, f"d_{idx}")
+
