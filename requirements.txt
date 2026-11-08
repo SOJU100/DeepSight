@@ -1,6 +1,10 @@
 streamlit
 duckduckgo-search
 holehe
+maigret
 langchain-community
 Pillow
 groq
+dnspython
+phonenumbers
+geopy
