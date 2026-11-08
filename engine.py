@@ -2,7 +2,7 @@ import base64
 import io
 import subprocess
 from PIL import Image
-from groq import Groq, RateLimitError
+from groq import Groq
 from langchain_community.tools import DuckDuckGoSearchRun
 
 def scan_email(email: str) -> str:
@@ -19,8 +19,23 @@ def web_search(query: str) -> str:
     except Exception as e:
         return f"Web search note: {str(e)}"
 
+def get_best_text_model(client: Groq) -> str:
+    preferred = ["openai/gpt-oss-20b", "openai/gpt-oss-120b", "qwen/qwen3.8-27b", "llama-3.1-8b-instant"]
+    try:
+        available = [m.id for m in client.models.list().data]
+        for p in preferred:
+            if p in available:
+                return p
+        for m in available:
+            if "whisper" not in m and "guard" not in m and "orpheus" not in m:
+                return m
+    except Exception:
+        pass
+    return "openai/gpt-oss-20b"
+
 def run_text_investigation(target: str, mode: str, api_key: str) -> str:
     client = Groq(api_key=api_key.strip())
+    model_id = get_best_text_model(client)
     
     footprint_data = scan_email(target) if "@" in target else "Username target — skipping email-only scan."
     web_data = web_search(f'"{target}"')
@@ -44,21 +59,15 @@ def run_text_investigation(target: str, mode: str, api_key: str) -> str:
     ### 3. Social Media & Open Web Footprint
     ### 4. Confidence Assessment & Next Steps
     """
-    for model_id in ["llama-3.1-8b-instant", "openai/gpt-oss-120b"]:
-        try:
-            completion = client.chat.completions.create(
-                model=model_id,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            return completion.choices.message.content
-        except RateLimitError:
-            continue
-    return "⚠️ Groq free-tier rate limit reached. Please wait 60 seconds and try again."
+    completion = client.chat.completions.create(
+        model=model_id,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return completion.choices.message.content
 
 def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) -> str:
     client = Groq(api_key=api_key.strip())
     
-    # Compress image to 512x512 JPEG so it uses minimal tokens on Groq's free tier
     img = Image.open(uploaded_image).convert("RGB")
     img.thumbnail((512, 512))
     buf = io.BytesIO()
@@ -71,12 +80,7 @@ def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) ->
     Additional Context: {context_notes if context_notes else 'None provided'}
     Format the output as a clean Markdown Intelligence Report.
     """
-    vision_models = [
-        "meta-llama/llama-4-maverick-17b-128e-instruct",
-        "qwen/qwen2.5-vl-7b-instruct",
-        "qwen/qwen3.8-27b"
-    ]
-    for model_id in vision_models:
+    for model_id in ["qwen/qwen3.8-27b", "meta-llama/llama-4-maverick-17b-128e-instruct"]:
         try:
             completion = client.chat.completions.create(
                 model=model_id,
@@ -89,6 +93,7 @@ def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) ->
                 }]
             )
             return completion.choices.message.content
-        except Exception:
+        except Exception as e:
+            last_err = str(e)
             continue
-    return "⚠️ Groq's free tier vision quota is temporarily busy. Wait 60 seconds and retry, or try Full Investigation / Social Profile Search."
+    return f"⚠️ Vision scan notice: {last_err}"
