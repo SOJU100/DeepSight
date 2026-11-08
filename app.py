@@ -10,8 +10,7 @@ st.markdown("""
 <style>
     .stApp { background-color: #0b0f19; color: #e2e8f0; }
     [data-testid="stSidebar"] { background-color: #0f1523; border-right: 1px solid #1e293b; }
-    [data-testid="stPopover"] > button { background-color: #3b82f6 !important; color: #ffffff !important; border: none !important; border-radius: 6px !important; font-weight: 700 !important; padding: 10px 18px !important; width: 100%; }
-    [data-testid="stPopover"] > button:hover { background-color: #2563eb !important; }
+    [data-testid="stPopover"] > button { background-color: #3b82f6 !important; color: #fff !important; border: none !important; border-radius: 6px !important; font-weight: 700 !important; padding: 10px 18px !important; width: 100%; }
     [data-testid="stPopoverBody"] { background-color: #0f1523 !important; border: 1px solid #1e293b !important; border-radius: 10px !important; padding: 16px !important; min-width: 320px !important; }
     .kpi-card { background-color: #111827; border: 1px solid #1e293b; border-radius: 8px; padding: 18px 20px; margin-bottom: 10px; }
     .kpi-label { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #94a3b8; text-transform: uppercase; margin-bottom: 6px; }
@@ -40,16 +39,8 @@ with st.sidebar:
     st.divider()
     nav = st.radio("NAVIGATION", ["📊 Dashboard", "🔍 Investigations", "🔑 API & Settings"], label_visibility="collapsed")
     st.divider()
-
-    if "GEMINI_API_KEY" in st.secrets:
-        api_key = st.secrets["GEMINI_API_KEY"]
-    else:
-        api_key = st.text_input("Gemini API Key", type="password", placeholder="Paste Gemini key...")
-
-    if api_key:
-        st.success("● API ACTIVE (Encrypted Vault)")
-    else:
-        st.warning("● API INACTIVE — Add key in Secrets")
+    api_key = st.secrets["GEMINI_API_KEY"] if "GEMINI_API_KEY" in st.secrets else st.text_input("Gemini API Key", type="password")
+    st.success("● API ACTIVE (Encrypted Vault)") if api_key else st.warning("● API INACTIVE")
 
 @st.dialog("🚀 Launch Investigation", width="large")
 def open_modal(selected_mode="Full Investigation"):
@@ -58,11 +49,7 @@ def open_modal(selected_mode="Full Investigation"):
         uploaded_file = st.file_uploader("Upload Target Image (JPG, PNG)", type=["jpg", "jpeg", "png"])
         ctx = st.text_input("Optional Context", placeholder="e.g., Taken near a coastal highway...")
         if st.button("🛰️ Run Visual Intelligence Scan", type="primary", use_container_width=True):
-            if not api_key:
-                st.error("API key missing. Add GEMINI_API_KEY in Streamlit Secrets.")
-            elif not uploaded_file:
-                st.warning("Please upload an image first.")
-            else:
+            if api_key and uploaded_file:
                 with st.status("Analyzing image clues...", expanded=True):
                     report = run_photo_investigation(uploaded_file, ctx, api_key)
                     st.session_state.investigations.append({"time": datetime.now().strftime("%H:%M"), "mode": "Photo Intel", "target": uploaded_file.name, "report": report})
@@ -70,16 +57,9 @@ def open_modal(selected_mode="Full Investigation"):
     else:
         target = st.text_input("Target Identifier", placeholder="target@example.com")
         if st.button("🛰️ Deploy AI Agents", type="primary", use_container_width=True):
-            if not api_key:
-                st.error("API key missing. Add GEMINI_API_KEY in Streamlit Secrets.")
-            elif not target:
-                st.warning("Please enter a target email or username.")
-            else:
+            if api_key and target:
                 os.environ["GEMINI_API_KEY"] = api_key
                 with st.status(f"Deploying {selected_mode} Agents...", expanded=True):
-                    st.write("🔍 **Footprint Scanner:** Checking platform registrations...")
-                    st.write("🌐 **Web Researcher:** Querying open web & public records...")
-                    st.write("🧠 **Lead Analyst:** Compiling final intelligence dossier...")
                     report = run_text_investigation(target, selected_mode, api_key)
                     st.session_state.investigations.append({"time": datetime.now().strftime("%H:%M"), "mode": selected_mode, "target": target, "report": report})
                     st.rerun()
@@ -90,13 +70,9 @@ if nav == "🔑 API & Settings":
 
 elif nav == "🔍 Investigations":
     st.markdown('<div class="section-header">// CASE ARCHIVE & REPORTS</div>', unsafe_allow_html=True)
-    if not st.session_state.investigations:
-        st.info("No completed investigations yet. Click '+ NEW INVESTIGATION' on the Dashboard.")
-    else:
-        for idx, case in enumerate(reversed(st.session_state.investigations)):
-            with st.expander(f"📁 [{case['time']}] {case['mode']} — {case['target']}", expanded=(idx == 0)):
-                st.markdown(case["report"])
-                st.download_button("📥 Export Markdown Dossier", data=case["report"], file_name=f"deepsight_{case['target']}.md", mime="text/markdown", key=f"arch_{idx}")
+    for idx, case in enumerate(reversed(st.session_state.investigations)):
+        with st.expander(f"📁 [{case['time']}] {case['mode']} — {case['target']}", expanded=(idx == 0)):
+            st.markdown(case["report"])
 
 else:
     top_l, top_r = st.columns(2)
@@ -135,3 +111,16 @@ else:
         if st.button("Select Photo Intel", key="c2", use_container_width=True):
             open_modal("Start From a Photo")
     with m3:
+        st.markdown('<div class="mode-card"><div class="mode-title">👤 SOCIAL PROFILE SEARCH</div><div class="mode-desc">Find social media accounts and online handles tied to an email address or username.</div></div>', unsafe_allow_html=True)
+        if st.button("Select Social Search", key="c3", use_container_width=True):
+            open_modal("Social Profile Search")
+
+    st.markdown('<div class="section-header">// RECENT INVESTIGATIONS</div>', unsafe_allow_html=True)
+    if not st.session_state.investigations:
+        with st.container(border=True):
+            st.markdown("<div style='text-align:center; padding: 25px; color: #64748b;'><b>NO INVESTIGATIONS YET</b><br><span style='font-size:12px;'>Click '+ NEW INVESTIGATION' at the top right to select an operation type.</span></div>", unsafe_allow_html=True)
+    else:
+        for idx, case in enumerate(reversed(st.session_state.investigations)):
+            with st.expander(f"✅ [{case['time']}] {case['mode']} — {case['target']}", expanded=(idx == 0)):
+                st.markdown(case["report"])
+                st.download_button("📥 Download Dossier (.md)", data=case["report"], file_name=f"deepsight_{case['target']}.md", mime="text/markdown", key=f"d_{idx}")
