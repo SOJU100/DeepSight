@@ -1,5 +1,7 @@
 import base64
+import io
 import subprocess
+from PIL import Image
 from groq import Groq
 from langchain_community.tools import DuckDuckGoSearchRun
 
@@ -28,13 +30,13 @@ def run_text_investigation(target: str, mode: str, api_key: str) -> str:
     You are a Lead OSINT Intelligence Analyst. Compile the raw reconnaissance data below into a structured, high-confidence Markdown Intelligence Dossier for target: '{target}' (Operation Mode: {mode}).
 
     RAW FOOTPRINT DATA (Holehe):
-    {footprint_data}
+    {footprint_data[:3000]}
 
     RAW OPEN WEB MENTIONS:
-    {web_data}
+    {web_data[:3000]}
 
     RAW SOCIAL PROFILE MENTIONS:
-    {social_data}
+    {social_data[:3000]}
 
     Format your report with these exact Markdown sections:
     ### 1. Executive Summary
@@ -43,14 +45,21 @@ def run_text_investigation(target: str, mode: str, api_key: str) -> str:
     ### 4. Confidence Assessment & Next Steps
     """
     completion = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="openai/gpt-oss-120b",
         messages=[{"role": "user", "content": prompt}]
     )
-    return completion.choices[0].message.content
+    return completion.choices.message.content
 
 def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) -> str:
     client = Groq(api_key=api_key.strip())
-    img_b64 = base64.b64encode(uploaded_image.getvalue()).decode("utf-8")
+    
+    # Compress & resize image to stay well within free-tier token limits
+    img = Image.open(uploaded_image).convert("RGB")
+    img.thumbnail((800, 800))
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=75)
+    img_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+
     prompt = f"""
     You are an expert OSINT Geolocation and Visual Intelligence Analyst.
     Analyze this image for geolocation clues, landmarks, signage, environment, logos, and reverse-search leads.
@@ -67,4 +76,4 @@ def run_photo_investigation(uploaded_image, context_notes: str, api_key: str) ->
             ]
         }]
     )
-    return completion.choices[0].message.content
+    return completion.choices.message.content
