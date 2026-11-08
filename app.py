@@ -75,7 +75,7 @@ elif nav == "🔍 Investigations":
             st.markdown(case["report"])
 
 else:
-top_l, top_r = st.columns()
+    top_l, top_r = st.columns(2)
     with top_l:
         st.markdown("## // OPERATIONS")
         st.caption("Command center — live intelligence overview")
